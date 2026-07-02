@@ -4,12 +4,12 @@ import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter", // Mudámos o nome para evitar conflito
 });
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
-  variable: "--font-serif",
+  variable: "--font-playfair", // Mudámos o nome para evitar conflito
 });
 
 export const metadata: Metadata = {

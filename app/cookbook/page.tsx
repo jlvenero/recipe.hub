@@ -1,25 +1,30 @@
-"use client";
-
 import Navbar from "@/components/Navbar";
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { redirect } from "next/navigation";
+import { authOptions } from "../api/auth/[...nextauth]/route";
 
-export default function CookbookPage() {
-  const [recipes, setRecipes] = useState<any[]>([]);
+export default async function CookbookPage() {
+  // 1. Pega a sessão do usuário que está logado
+  const session = await getServerSession(authOptions);
 
-  // Carrega as receitas do localStorage assim que a página abre
-  useEffect(() => {
-    try {
-      // Tenta ler e converter as receitas
-      const savedRecipes = JSON.parse(localStorage.getItem("recipeHub_cookbook") || "[]");
-      setRecipes(savedRecipes);
-    } catch (error) {
-      // Se o JSON estiver quebrado, ele cai aqui, reseta a memória e evita a tela vermelha
-      console.error("Memória corrompida, resetando o livro de receitas...", error);
-      localStorage.setItem("recipeHub_cookbook", "[]");
-      setRecipes([]);
+  // 2. Proteção de rota: Se não tiver ninguém logado, joga para o login
+  if (!session || !session.user?.email) {
+    redirect("/login");
+  }
+
+  // 3. Busca no banco de dados (Prisma) APENAS as receitas deste usuário
+  const recipes = await prisma.recipe.findMany({
+    where: {
+      user: {
+        email: session.user.email, // Relacionamento inteligente do Prisma!
+      },
+    },
+    orderBy: {
+      createdAt: 'desc', // Mostra as mais recentes primeiro
     }
-  }, []);
+  });
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col font-sans">

@@ -16,29 +16,37 @@ export default function ImportPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/extract", {
+      // 1. Extrai a receita usando a API de Inteligência Artificial
+      const extractResponse = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
 
-      const data = await response.json();
+      const extractedData = await extractResponse.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao importar a receita.");
+      if (!extractResponse.ok) {
+        throw new Error(extractedData.error || "Erro ao extrair a receita da URL.");
       }
 
-      // Salva no Livro de Receitas do Navegador
-      const newRecipe = { 
-        ...data, 
-        id: Date.now().toString() 
-      };
-      
-      const existingRecipes = JSON.parse(localStorage.getItem("recipeHub_cookbook") || "[]");
-      localStorage.setItem("recipeHub_cookbook", JSON.stringify([...existingRecipes, newRecipe]));
+      // 2. Salva a receita no banco de dados vinculando ao usuário logado
+      const saveResponse = await fetch("/api/recipes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(extractedData), 
+      });
 
-      // Vai para a tela do Livro
-      router.push("/cookbook");
+      // NOVO: Lê os dados que o banco devolveu (que incluem o ID gerado da nova receita)
+      const savedRecipe = await saveResponse.json();
+
+      if (!saveResponse.ok) {
+        throw new Error(savedRecipe.error || "Erro ao salvar a receita no banco de dados.");
+      }
+
+      // 3. Deu tudo certo! Vai direto para a tela de Detalhes da Receita usando o novo ID
+      router.push(`/cookbook/${savedRecipe.id}`);
 
     } catch (err: any) {
       setError(err.message);
@@ -88,7 +96,7 @@ export default function ImportPage() {
                 disabled={isLoading}
                 className="bg-[#9C4A3A] text-[#FAF8F5] px-8 py-3.5 rounded-full font-medium hover:bg-[#823B2E] transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? "Extraindo com IA..." : "Importar receita"}
+                {isLoading ? "Processando e Salvando..." : "Importar receita"}
               </button>
             </div>
             
