@@ -16,8 +16,12 @@ export default function AuthLayout({ children, imagePosition = "right" }: AuthLa
         {/* Se imagePosition for "left", renderiza o bloco da imagem primeiro */}
         {imagePosition === "left" && (
           <div className="hidden md:block md:w-1/2 bg-[#EAE6DF]">
-             <div className="h-full w-full bg-neutral-300 flex items-center justify-center text-xs text-gray-500 font-mono">
-               [Imagem de Salada (Esquerda)]
+             <div className="h-full w-full relative overflow-hidden group">
+               <img 
+                 src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=1200" 
+                 alt="Salada fresca" 
+                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
+               />
              </div>
           </div>
         )}
@@ -32,8 +36,12 @@ export default function AuthLayout({ children, imagePosition = "right" }: AuthLa
         {/* Se imagePosition for "right", renderiza o bloco da imagem depois */}
         {imagePosition === "right" && (
           <div className="hidden md:block md:w-1/2 bg-[#EAE6DF]">
-             <div className="h-full w-full bg-neutral-800 flex items-center justify-center text-xs text-gray-400 font-mono">
-               [Imagem Escura (Direita)]
+             <div className="h-full w-full relative overflow-hidden group">
+               <img 
+                 src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&q=80&w=1200" 
+                 alt="Ambiente escuro e prato sofisticado" 
+                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
+               />
              </div>
           </div>
         )}

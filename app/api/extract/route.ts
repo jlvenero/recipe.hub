@@ -2,21 +2,73 @@ import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Inicializa o cliente do Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
+    const body = await request.json();
+    const { url, query } = body;
 
-    if (!url) {
-      return NextResponse.json({ error: "A URL é obrigatória." }, { status: 400 });
+    // Se não tiver nem url nem query, bloqueia.
+    if (!url && !query) {
+      return NextResponse.json({ error: "URL ou termo de busca são obrigatórios." }, { status: 400 });
     }
 
-    // 1. Baixamos o HTML disfarçados de navegador
+    let recipeData = null;
+
+    // ---------------------------------------------------------
+    // NOVA ROTA: GERAR RECEITA VIA IA (Quando o usuário digita o prato)
+    // ---------------------------------------------------------
+    if (query) {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("A chave do Gemini não foi configurada.");
+      }
+
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        generationConfig: { responseMimeType: "application/json" }
+      });
+
+      const prompt = `
+        Você é um chef expert e assistente culinário. 
+        O usuário pediu uma receita para: "${query}".
+        Encontre em sua base de conhecimento a receita mais clássica, deliciosa e bem avaliada para este pedido.
+        Retorne ESTRITAMENTE um objeto JSON com as seguintes chaves:
+        - "name": (string) O nome formal da receita.
+        - "description": (string) Uma descrição curta e apetitosa do prato (1-2 frases).
+        - "prepTime": (string) Tempo de preparo estimado (ex: "45 min").
+        - "ingredients": (array de strings) A lista de ingredientes exatos com as quantidades.
+        - "instructions": (array de strings) O passo a passo do modo de preparo detalhado, de forma clara e limpa.
+      `;
+
+      const result = await model.generateContent(prompt);
+      let aiResponseText = result.response.text();
+      aiResponseText = aiResponseText.replace(/^```json/g, "").replace(/```$/g, "").trim();
+      
+      let aiRecipe;
+      try {
+        aiRecipe = JSON.parse(aiResponseText);
+      } catch (parseError) {
+        throw new Error("A IA não conseguiu formatar a receita corretamente. Tente novamente.");
+      }
+
+      return NextResponse.json({
+        name: aiRecipe.name || query,
+        description: aiRecipe.description || "Receita gerada especialmente para você por inteligência artificial.",
+        ingredients: aiRecipe.ingredients || [],
+        instructions: aiRecipe.instructions || [],
+        prepTime: aiRecipe.prepTime || "40 min",
+        image: null, // Como a IA de texto não gera imagem, ficará com o fallback de "Sem Imagem" no FrontEnd
+        method: "Gemini AI (Generation)"
+      });
+    }
+
+    // ---------------------------------------------------------
+    // ROTA EXISTENTE: EXTRAÇÃO DE URL (Plano A e B)
+    // ---------------------------------------------------------
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
       }
@@ -28,11 +80,8 @@ export async function POST(request: Request) {
 
     const html = await response.text();
     const $ = cheerio.load(html);
-    let recipeData = null;
 
-    // ---------------------------------------------------------
-    // PLANO A: Extração Rápida via JSON-LD (Caminho Feliz)
-    // ---------------------------------------------------------
+    // PLANO A: JSON-LD
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
         const json = JSON.parse($(el).html() || "{}");
@@ -47,69 +96,49 @@ export async function POST(request: Request) {
               ingredients: item.recipeIngredient || [],
               instructions: item.recipeInstructions?.map((step: any) => step.text || step) || [],
               image: item.image?.url || (Array.isArray(item.image) ? item.image[0] : item.image) || null,
+              prepTime: item.totalTime || item.prepTime || "45 min",
               method: "JSON-LD (Fast)"
             };
             break;
           }
         }
-      } catch (e) {
-        // Ignora falhas no JSON estruturado e segue
-      }
+      } catch (e) { }
     });
 
-    // ---------------------------------------------------------
-    // PLANO B: Extração Inteligente com IA (Gemini Fallback)
-    // ---------------------------------------------------------
+    // PLANO B: Gemini Fallback
     if (!recipeData) {
       if (!process.env.GEMINI_API_KEY) {
-        throw new Error("JSON-LD não encontrado e a chave do Gemini não foi configurada para o fallback.");
+        throw new Error("JSON-LD não encontrado e chave da IA ausente.");
       }
 
-      // Limpamos o HTML tirando tags inúteis para facilitar para a IA
       $('script, style, nav, footer, header, aside, iframe, noscript').remove();
-      
-      // Pegamos apenas o texto da página, removemos espaços extras e limitamos o tamanho
       const cleanText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 15000);
       const title = $('title').text().trim();
       const ogImage = $('meta[property="og:image"]').attr('content') || null;
 
-      // Configuramos o modelo para forçar a saída em JSON
       const model = genAI.getGenerativeModel({ 
         model: "gemini-2.5-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
 
       const prompt = `
-        Você é um assistente culinário extrator de dados. 
-        Analise o texto abaixo retirado do site '${title}' e extraia a receita.
-        Retorne ESTRITAMENTE um objeto JSON com as seguintes chaves:
-        - "name": (string) O nome da receita.
-        - "ingredients": (array de strings) A lista de ingredientes com as quantidades.
-        - "instructions": (array de strings) O passo a passo do modo de preparo.
-        Se o texto não contiver uma receita, retorne arrays vazias.
-
-        Texto da página:
-        ${cleanText}
+        Analise o texto retirado do site '${title}' e extraia a receita.
+        Retorne ESTRITAMENTE um objeto JSON com: "name", "ingredients" (array), "instructions" (array) e "prepTime" (string).
+        Texto: ${cleanText}
       `;
 
       const result = await model.generateContent(prompt);
       let aiResponseText = result.response.text();
-      
-      // Limpa possíveis formatações markdown que a IA pode ter inserido por acidente
       aiResponseText = aiResponseText.replace(/^```json/g, "").replace(/```$/g, "").trim();
       
-      let aiRecipe;
-      try {
-        aiRecipe = JSON.parse(aiResponseText);
-      } catch (parseError) {
-        throw new Error("A IA não conseguiu formatar a receita corretamente desta vez. Tente importar novamente.");
-      }
+      const aiRecipe = JSON.parse(aiResponseText);
 
       recipeData = {
         name: aiRecipe.name || title,
         ingredients: aiRecipe.ingredients || [],
         instructions: aiRecipe.instructions || [],
-        image: ogImage, // Pegamos a imagem da meta tag como quebra-galho
+        prepTime: aiRecipe.prepTime || "60 min",
+        image: ogImage,
         method: "Gemini AI (Smart Fallback)"
       };
     }

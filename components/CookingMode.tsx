@@ -2,9 +2,16 @@ export default function CookingMode() {
   return (
     <section className="bg-[#1C1B19] text-[#FAF8F5] py-20 px-8 md:px-16">
       <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-        <div className="bg-[#2A2927] rounded-2xl h-[320px] flex items-center justify-center text-xs text-gray-600 font-mono shadow-sm">
-          [Imagem Modo Cozinha]
+        
+        {/* Bloco da Imagem Atualizado com nova URL */}
+        <div className="bg-[#2A2927] rounded-2xl h-[320px] shadow-sm relative overflow-hidden group">
+          <img 
+            src="https://images.unsplash.com/photo-1507048331197-7d4ac70811cf?auto=format&fit=crop&q=80&w=800" 
+            alt="Mãos preparando massa com farinha na bancada da cozinha" 
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out opacity-90"
+          />
         </div>
+
         <div>
           <p className="text-xs font-semibold text-[#D4A373] tracking-widest uppercase mb-4">Modo Cozinha</p>
           <h3 className="text-4xl md:text-5xl font-serif font-light mb-6 leading-tight">
