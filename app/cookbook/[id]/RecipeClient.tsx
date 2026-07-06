@@ -1,11 +1,13 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { Recipe } from "@prisma/client";
 
-const cleanText = (text: string) => {
+// Função pura mantida fora do ciclo de vida do React por questões de performance
+const cleanText = (text: string | null) => {
   if (!text) return "";
   let fixed = text.replace(/&amp;/g, '&');
   const entities: { [key: string]: string } = {
@@ -22,28 +24,39 @@ const cleanText = (text: string) => {
   return fixed.replace(/&[#a-zA-Z0-9]+;/g, (match) => entities[match] || match);
 };
 
-export default function RecipeClient({ initialRecipe, recipeId }: { initialRecipe: any, recipeId: string }) {
+export default function RecipeClient({ initialRecipe, recipeId }: { initialRecipe: Recipe, recipeId: string }) {
   const router = useRouter();
-  const [recipe] = useState<any>(initialRecipe);
+  const [recipe] = useState<Recipe>(initialRecipe);
   
   const BASE_SERVINGS = 4;
   const [servings, setServings] = useState(BASE_SERVINGS);
   const [isCookingMode, setIsCookingMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
-  // === MAGIA DO MODO COZINHA (TELA CHEIA + PAISAGEM) ===
+  // === HIDRATAÇÃO DO ESTADO (Recupera onde o utilizador parou) ===
+  useEffect(() => {
+    const savedMode = sessionStorage.getItem(`cookingMode-${recipeId}`);
+    const savedStep = sessionStorage.getItem(`cookingStep-${recipeId}`);
+    if (savedMode === 'true') setIsCookingMode(true);
+    if (savedStep) setCurrentStep(Number(savedStep));
+  }, [recipeId]);
+
+  const updateStep = (newStep: number) => {
+    setCurrentStep(newStep);
+    sessionStorage.setItem(`cookingStep-${recipeId}`, newStep.toString());
+  };
+
+  // === MAGIA DO MODO COZINHA ===
   const startCooking = async () => {
-    setCurrentStep(0);
+    updateStep(0);
     setIsCookingMode(true);
+    sessionStorage.setItem(`cookingMode-${recipeId}`, 'true');
     
-    // Tenta forçar Tela Cheia e virar o celular de lado
     try {
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
-        // @ts-ignore
-        if (window.screen.orientation && window.screen.orientation.lock) {
-          // @ts-ignore
-          await window.screen.orientation.lock("landscape");
+        if (window.screen.orientation && 'lock' in window.screen.orientation) {
+          await (window.screen.orientation as any).lock("landscape");
         }
       }
     } catch (error) {
@@ -53,20 +66,18 @@ export default function RecipeClient({ initialRecipe, recipeId }: { initialRecip
 
   const stopCooking = async () => {
     setIsCookingMode(false);
+    sessionStorage.removeItem(`cookingMode-${recipeId}`);
     try {
       if (document.exitFullscreen) {
         await document.exitFullscreen();
       }
-      // @ts-ignore
-      if (window.screen.orientation && window.screen.orientation.unlock) {
-        // @ts-ignore
-        window.screen.orientation.unlock();
+      if (window.screen.orientation && 'unlock' in window.screen.orientation) {
+        (window.screen.orientation as any).unlock();
       }
     } catch (error) {
       console.log(error);
     }
   };
-  // ====================================================
 
   const handleDelete = async () => {
     const confirmDelete = confirm("Tem certeza que deseja excluir esta receita?");
@@ -78,7 +89,7 @@ export default function RecipeClient({ initialRecipe, recipeId }: { initialRecip
         router.push("/cookbook");
         router.refresh(); 
       } else {
-        alert("Erro ao excluir a receita.");
+        alert("Erro ao excluir a receita. Verifique se tem permissão.");
       }
     } catch (error) {
       console.error("Erro na exclusão", error);
@@ -107,7 +118,7 @@ export default function RecipeClient({ initialRecipe, recipeId }: { initialRecip
           <span className="text-lg md:text-xl font-serif text-[#D4A373] truncate pr-4">{cleanText(recipe.name)}</span>
           <button 
             onClick={stopCooking} 
-            className="text-[#8A857F] hover:text-white flex items-center gap-2 text-xs md:text-sm tracking-widest uppercase font-bold"
+            className="text-[#8A857F] hover:text-white flex items-center gap-2 text-xs md:text-sm tracking-widest uppercase font-bold transition-colors"
           >
             ✕ Sair
           </button>
@@ -125,14 +136,14 @@ export default function RecipeClient({ initialRecipe, recipeId }: { initialRecip
           <div className="fixed md:absolute bottom-6 md:bottom-12 w-full flex justify-between px-6 md:px-24 left-0">
             <button
               disabled={currentStep === 0}
-              onClick={() => setCurrentStep(prev => prev - 1)}
+              onClick={() => updateStep(currentStep - 1)}
               className="text-base md:text-2xl font-serif italic text-[#8A857F] hover:text-white disabled:opacity-20 transition-colors"
             >
               ← Anterior
             </button>
             <button
               disabled={currentStep === recipe.instructions.length - 1}
-              onClick={() => setCurrentStep(prev => prev + 1)}
+              onClick={() => updateStep(currentStep + 1)}
               className="text-base md:text-2xl font-serif italic text-[#D4A373] hover:text-white disabled:opacity-20 transition-colors"
             >
               Próximo →
@@ -158,7 +169,7 @@ export default function RecipeClient({ initialRecipe, recipeId }: { initialRecip
             <p className="text-[10px] font-bold text-[#9C4A3A] tracking-[0.15em] uppercase mb-4">IMPORTADO</p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif mb-4 md:mb-6 leading-tight">{cleanText(recipe.name)}</h1>
             <p className="text-[#6B6661] text-sm leading-relaxed mb-6 md:mb-8">
-              {cleanText(recipe.description) || "Receita importada estruturada perfeitamente para o seu livro."}
+              {cleanText(recipe.description) || "Receita estruturada perfeitamente para o seu livro."}
             </p>
             
             <div className="flex items-center gap-4 text-xs font-mono text-[#8A857F] mb-6 md:mb-8 uppercase tracking-wider">
