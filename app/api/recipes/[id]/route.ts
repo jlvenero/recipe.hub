@@ -1,3 +1,4 @@
+// app/api/recipes/[id]/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
@@ -12,7 +13,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Deleta a receita do banco onde o ID bate
+    // 1. Busca a receita no banco para verificar quem é o dono
+    const recipe = await prisma.recipe.findUnique({
+      where: { id },
+      include: { user: true } // Trazemos o usuário vinculado para comparar
+    });
+
+    if (!recipe) {
+      return NextResponse.json({ error: "Receita não encontrada." }, { status: 404 });
+    }
+
+    // 2. Bloqueia a ação se o e-mail do autor não for o mesmo da sessão atual
+    if (recipe.user.email !== session.user.email) {
+      return NextResponse.json({ error: "Acesso negado. Você não tem permissão para excluir esta receita." }, { status: 403 });
+    }
+
+    // 3. Se passou pela validação, deleta com segurança
     await prisma.recipe.delete({
       where: { id: id }
     });
