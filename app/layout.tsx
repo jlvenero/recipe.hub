@@ -13,8 +13,13 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Recipe.Hub",
+  // Nome e emoji fixos que aparecerão em todas as abas do projeto
+  title: "Recipe Hub", 
   description: "A cookbook that remembers every taste you love.",
+  // Ícone padrão apontando para a sua pasta public
+  icons: {
+    icon: "/fivecon.svg", 
+  },
 };
 
 export default function RootLayout({
