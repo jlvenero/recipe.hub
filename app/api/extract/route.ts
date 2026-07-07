@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+// Adicionamos o ResponseSchema aqui na importação
+import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // ==========================================
 // SCHEMA DE RESPOSTA (STRUCTURED OUTPUTS)
-// Garante que o Gemini devolve sempre um JSON válido com estas chaves
+// Tipado explicitamente com 'ResponseSchema' para remover os erros do TypeScript
 // ==========================================
-const recipeResponseSchema = {
+const recipeResponseSchema: ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
     name: { type: SchemaType.STRING, description: "O nome formal da receita." },

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+// IMPORTAÇÃO CORRIGIDA AQUI:
+import { authOptions } from "@/lib/auth";
 
 // ==========================================
 // MÉTODO GET: Vai buscar as receitas para o Cookbook
